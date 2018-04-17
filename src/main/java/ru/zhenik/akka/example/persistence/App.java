@@ -10,6 +10,8 @@ import akka.actor.Props;
 import akka.japi.Pair;
 import akka.kafka.ProducerSettings;
 import akka.kafka.javadsl.Producer;
+import akka.persistence.query.PersistenceQuery;
+import akka.persistence.query.journal.leveldb.javadsl.LeveldbReadJournal;
 import akka.stream.ActorMaterializer;
 import akka.stream.Materializer;
 import akka.stream.alpakka.file.DirectoryChange;
@@ -22,7 +24,6 @@ import akka.stream.javadsl.Source;
 import com.typesafe.config.Config;
 import com.typesafe.config.ConfigFactory;
 import java.io.File;
-import java.io.FileInputStream;
 import java.nio.file.FileSystem;
 import java.nio.file.FileSystems;
 import java.nio.file.Path;
@@ -33,7 +34,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Properties;
 import java.util.Set;
-import java.util.UUID;
 import java.util.concurrent.CompletionStage;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
@@ -46,11 +46,11 @@ import org.apache.kafka.clients.admin.KafkaAdminClient;
 import org.apache.kafka.clients.admin.NewTopic;
 import org.apache.kafka.clients.producer.ProducerRecord;
 import org.apache.kafka.common.config.ConfigResource;
-import org.apache.kafka.common.serialization.ByteArraySerializer;
 import org.apache.kafka.common.serialization.StringSerializer;
 import scala.concurrent.duration.FiniteDuration;
 
 public class App {
+
   // kafka topic
   public static final String TOPIC = "new-topic";
 
@@ -65,13 +65,23 @@ public class App {
     System.out.println("config:img-dir = " + imgDir);
     System.out.println("config:app-name = " + appName);
 
-
     // Akka
     final ActorSystem system = ActorSystem.create(appName);
-    //TODO
-    final ActorRef persistentActor = null;
-
     final Materializer materializer = ActorMaterializer.create(system);
+    final ActorRef persistentActor = system.actorOf(
+        Props.create(DirListingStatePersistentActor.class), "directory-listing-state-persistent-actor");
+
+    // Query all persisted events
+    LeveldbReadJournal queries =
+        PersistenceQuery
+            .get(system).getReadJournalFor(LeveldbReadJournal.class, LeveldbReadJournal.Identifier());
+    Source<String, NotUsed> processedFileNames = queries
+        .currentPersistenceIds()
+        .flatMapConcat(eachPersistentId -> queries.currentEventsByPersistenceId(eachPersistentId, 0, Long.MAX_VALUE))
+        .map(eventEnvelope -> ((Evt)eventEnvelope.event()).getData());
+
+    // TODO: merge sources, filter by duplicates
+
 
     // File system access
     final FileSystem fs = FileSystems.getDefault();
@@ -80,18 +90,16 @@ public class App {
     // PreStart: create topic if not exist
     preStart(kafkaBootstrapServers);
 
-    // Two sources will be concatenated later
-    // Source LIST all existing files in directory
+    // Original listing (put on stream name of each file in directory)
     final Source<Path, NotUsed> listDirSource =
         Directory.ls(fs.getPath(imgDir))
-            .filter(e -> {
-              System.out.println("FILENAME: "+e.toString());
-              return e.toString().endsWith(".jpg");
-            })
             .map(e -> {
-              out.println("Existing file: " + e.toString());
+              System.out.println("listDirSource file: " + e.toString());
               return e;
             });
+
+
+
     // Source CHANGE LISTENER
     final Source<Path, NotUsed> changesSource =
         DirectoryChangesSource
@@ -111,15 +119,14 @@ public class App {
         .map(File::new)
         .map(file -> {
           try {
-            final String componentId = file.getCanonicalPath();
-            return new ProducerRecord<String, String>(TOPIC, componentId, componentId);
+            final String filename = file.getCanonicalPath();
+            return new ProducerRecord<String, String>(TOPIC, filename, filename);
           } catch (Throwable throwable) {
             throwable.printStackTrace();
             return null;
           }
         })
         .filterNot(Objects::isNull);
-
 
     // Sink
     final ProducerSettings<String, String> kafkaProducerSettings =
@@ -129,10 +136,11 @@ public class App {
     final Sink<ProducerRecord<String, String>, CompletionStage<Done>> kafkaSink =
         Producer.<String, String>plainSink(kafkaProducerSettings);
 
-
     Sink<Path, NotUsed> sink = flow
         .map(e -> {
           out.println("Element to send: " + e.key());
+          // persist filename as a processed
+          persistentActor.tell(new Cmd(e.key()), null);
           return e;
         })
         .to(kafkaSink);
@@ -143,8 +151,6 @@ public class App {
     runnableGraph.run(materializer);
     runnableGraph1.run(materializer);
   }
-
-
 
 
   private static void preStart(String kafkaBootstrapServers)
