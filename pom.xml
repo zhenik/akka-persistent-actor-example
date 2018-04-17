@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <groupId>ru.zhenik.akka.example</groupId>
+  <artifactId>persistence</artifactId>
+  <version>1.0-SNAPSHOT</version>
+
+  <properties>
+    <akka-stream-filesystem.version>0.17</akka-stream-filesystem.version>
+    <config.version>1.3.3</config.version>
+    <akka-persistence.version>2.5.12</akka-persistence.version>
+
+  </properties>
+
+  <dependencies>
+    <dependency>
+      <groupId>com.lightbend.akka</groupId>
+      <artifactId>akka-stream-alpakka-file_2.12</artifactId>
+      <version>${akka-stream-filesystem.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>com.typesafe.akka</groupId>
+      <artifactId>akka-stream-kafka_2.12</artifactId>
+      <version>${akka-stream-filesystem.version}</version>
+    </dependency>
+
+    <dependency>
+      <groupId>com.typesafe</groupId>
+      <artifactId>config</artifactId>
+      <version>${config.version}</version>
+    </dependency>
+    <!-- Persistence C-->
+    <dependency>
+      <groupId>com.typesafe.akka</groupId>
+      <artifactId>akka-persistence_2.12</artifactId>
+      <version>${akka-persistence.version}</version>
+    </dependency>
+    <!-- Persistence Q-->
+    <dependency>
+      <groupId>com.typesafe.akka</groupId>
+      <artifactId>akka-persistence-query_2.12</artifactId>
+      <version>${akka-persistence.version}</version>
+    </dependency>
+    <!-- Q for lvlDB -->
+    <dependency>
+      <groupId>org.fusesource.leveldbjni</groupId>
+      <artifactId>leveldbjni-all</artifactId>
+      <version>1.8</version>
+    </dependency>
+  </dependencies>
+
+  <build>
+    <plugins>
+      <plugin>
+        <artifactId>maven-jar-plugin</artifactId>
+        <configuration>
+          <archive>
+            <manifest>
+              <mainClass>ru.zhenik.akka.example.persistence.App
+              </mainClass>
+            </manifest>
+          </archive>
+        </configuration>
+      </plugin>
+      <plugin>
+        <artifactId>maven-dependency-plugin</artifactId>
+      </plugin>
+    </plugins>
+  </build>
+
+
+</project>
