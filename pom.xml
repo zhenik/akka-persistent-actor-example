@@ -12,7 +12,6 @@
     <akka-stream-filesystem.version>0.17</akka-stream-filesystem.version>
     <config.version>1.3.3</config.version>
     <akka-persistence.version>2.5.12</akka-persistence.version>
-
   </properties>
 
   <dependencies>
@@ -44,12 +43,17 @@
       <artifactId>akka-persistence-query_2.12</artifactId>
       <version>${akka-persistence.version}</version>
     </dependency>
-    <!-- Q for lvlDB -->
     <dependency>
-      <groupId>org.fusesource.leveldbjni</groupId>
-      <artifactId>leveldbjni-all</artifactId>
-      <version>1.8</version>
+      <groupId>org.iq80.leveldb</groupId>
+      <artifactId>leveldb</artifactId>
+      <version>0.7</version>
     </dependency>
+    <!-- Q for lvlDB -->
+    <!--<dependency>-->
+      <!--<groupId>org.fusesource.leveldbjni</groupId>-->
+      <!--<artifactId>leveldbjni-all</artifactId>-->
+      <!--<version>1.8</version>-->
+    <!--</dependency>-->
   </dependencies>
 
   <build>
