@@ -10,8 +10,8 @@ import akka.actor.Props;
 import akka.japi.Pair;
 import akka.kafka.ProducerSettings;
 import akka.kafka.javadsl.Producer;
-import akka.persistence.query.PersistenceQuery;
-import akka.persistence.query.journal.leveldb.javadsl.LeveldbReadJournal;
+
+import akka.pattern.PatternsCS;
 import akka.stream.ActorMaterializer;
 import akka.stream.Materializer;
 import akka.stream.alpakka.file.DirectoryChange;
@@ -27,6 +27,7 @@ import java.io.File;
 import java.nio.file.FileSystem;
 import java.nio.file.FileSystems;
 import java.nio.file.Path;
+import java.time.Duration;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -71,18 +72,6 @@ public class App {
     final ActorRef persistentActor = system.actorOf(
         Props.create(DirListingStatePersistentActor.class), "directory-listing-state-persistent-actor");
 
-    // Query all persisted events
-    LeveldbReadJournal queries =
-        PersistenceQuery
-            .get(system).getReadJournalFor(LeveldbReadJournal.class, LeveldbReadJournal.Identifier());
-    Source<String, NotUsed> processedFileNames = queries
-        .currentPersistenceIds()
-        .flatMapConcat(eachPersistentId -> queries.currentEventsByPersistenceId(eachPersistentId, 0, Long.MAX_VALUE))
-        .map(eventEnvelope -> ((Evt)eventEnvelope.event()).getData());
-
-    // TODO: merge sources, filter by duplicates
-
-
     // File system access
     final FileSystem fs = FileSystems.getDefault();
     final FiniteDuration pollingInterval = FiniteDuration.create(1, TimeUnit.SECONDS);
@@ -91,35 +80,38 @@ public class App {
     preStart(kafkaBootstrapServers);
 
     // Original listing (put on stream name of each file in directory)
-    final Source<Path, NotUsed> listDirSource =
-        Directory.ls(fs.getPath(imgDir))
-            .map(e -> {
-              System.out.println("listDirSource file: " + e.toString());
-              return e;
-            });
-
+    final Source<PathAndProcessed, NotUsed> listDirSource = Directory.ls(fs.getPath(imgDir))
+        .mapAsync(1, (Path e) -> {
+//              return null;
+          return
+              PatternsCS.ask(
+                  persistentActor,
+                  new IsFileProcessed(e.toString()),
+                  Duration.ofSeconds(4).toMillis())
+                  .thenApply(a -> (IsFileProcessedAnswer) a)
+                  .thenApply(isFileProcessedAnswer -> new PathAndProcessed(e.toString(), isFileProcessedAnswer.isAnswer()));
+        });
 
 
     // Source CHANGE LISTENER
-    final Source<Path, NotUsed> changesSource =
+    final Source<PathAndProcessed, NotUsed> changesSource =
         DirectoryChangesSource
             .create(fs.getPath(imgDir), pollingInterval, maxBufferSize)
             .filter(pair -> pair.second().equals(DirectoryChange.Creation))
             .map(Pair::first)
             .map(e -> {
               out.println("New file: " + e.toString());
-              return e;
+              return new PathAndProcessed(e.toString(), false);
             });
 
     // Flow
     // TODO: how2 affect FileNotFound
-    final Flow<Path, ProducerRecord<String, String>, NotUsed> flow = Flow
-        .of(Path.class)
-        .map(Path::toString)
-        .map(File::new)
+    final Flow<PathAndProcessed, ProducerRecord<String, String>, NotUsed> flow = Flow
+        .of(PathAndProcessed.class)
+        .filter(file -> !file.processed)
         .map(file -> {
           try {
-            final String filename = file.getCanonicalPath();
+            String filename = file.path;
             return new ProducerRecord<String, String>(TOPIC, filename, filename);
           } catch (Throwable throwable) {
             throwable.printStackTrace();
@@ -136,7 +128,7 @@ public class App {
     final Sink<ProducerRecord<String, String>, CompletionStage<Done>> kafkaSink =
         Producer.<String, String>plainSink(kafkaProducerSettings);
 
-    Sink<Path, NotUsed> sink = flow
+    Sink<PathAndProcessed, NotUsed> sink = flow
         .map(e -> {
           out.println("Element to send: " + e.key());
           // persist filename as a processed
@@ -187,6 +179,18 @@ public class App {
         out.println("Topic " + topic.name() + " is already created.");
       }
     }
+  }
+
+  public static class PathAndProcessed {
+    private final String path;
+    private final boolean processed;
+
+    public PathAndProcessed(String path, boolean processed) {
+      this.path = path;
+      this.processed = processed;
+    }
+    public String getPath() { return path; }
+    public boolean isProcessed() { return processed; }
   }
 
 }

@@ -22,6 +22,28 @@ class Evt implements Serializable {
   public String getData() { return data; }
 }
 
+class IsFileProcessed implements Serializable {
+  private static final long serialVersionUID = 1L;
+  private final String filename;
+
+  public IsFileProcessed(String filename) { this.filename = filename; }
+  public String getFilename() { return filename; }
+}
+
+class IsFileProcessedAnswer implements Serializable {
+  private static final long serialVersionUID = 1L;
+  private final boolean answer;
+  private final boolean correct;
+
+  public IsFileProcessedAnswer(boolean answer) { this.answer = answer; this.correct=true;}
+  public IsFileProcessedAnswer(){ this.answer = false; this.correct=false;}
+  public boolean isAnswer() {
+    System.out.println("HERE: ["+answer + ":"+correct+"]");
+    return answer;
+  }
+  public boolean isCorrect() { return correct; }
+}
+
 class StateExample implements Serializable {
   private static final long serialVersionUID = 1L;
   private final ArrayList<String> events;
@@ -32,6 +54,9 @@ class StateExample implements Serializable {
   public StateExample copy() { return new StateExample(new ArrayList<>(events)); }
   public void update(Evt evt) { events.add(evt.getData()); }
   public int size() { return events.size(); }
+  public boolean isExist(String filename){
+    return events.contains(filename);
+  }
 
   @Override
   public String toString() { return events.toString(); }
@@ -74,8 +99,19 @@ public class DirListingStatePersistentActor extends AbstractPersistentActor {
               saveSnapshot(stateExample.copy());
           });
         })
+        .match(IsFileProcessed.class, cmd -> {
+          final String filename = cmd.getFilename();
+          final IsFileProcessedAnswer answer = new IsFileProcessedAnswer(
+              isProcessed(filename)
+          );
+          sender().tell(answer, self());
+        })
         .matchEquals("print", s -> System.out.println(stateExample))
         .build();
+  }
+
+  private boolean isProcessed(String filename) {
+    return this.stateExample.isExist(filename);
   }
 
 
