@@ -23,7 +23,6 @@ import akka.stream.javadsl.Sink;
 import akka.stream.javadsl.Source;
 import com.typesafe.config.Config;
 import com.typesafe.config.ConfigFactory;
-import java.io.File;
 import java.nio.file.FileSystem;
 import java.nio.file.FileSystems;
 import java.nio.file.Path;
@@ -82,14 +81,13 @@ public class App {
     // Original listing (put on stream name of each file in directory)
     final Source<PathAndProcessed, NotUsed> listDirSource = Directory.ls(fs.getPath(imgDir))
         .mapAsync(1, (Path e) -> {
-//              return null;
           return
               PatternsCS.ask(
                   persistentActor,
                   new IsFileProcessed(e.toString()),
                   Duration.ofSeconds(4).toMillis())
                   .thenApply(a -> (IsFileProcessedAnswer) a)
-                  .thenApply(isFileProcessedAnswer -> new PathAndProcessed(e.toString(), isFileProcessedAnswer.isAnswer()));
+                  .thenApply(isFileProcessedAnswer -> new PathAndProcessed(e.toString(), isFileProcessedAnswer.getAnswer()));
         });
 
 
