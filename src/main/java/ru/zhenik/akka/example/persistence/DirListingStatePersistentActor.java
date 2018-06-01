@@ -38,7 +38,7 @@ class IsFileProcessedAnswer implements Serializable {
   public IsFileProcessedAnswer(boolean answer) { this.answer = answer; this.correct=true;}
   public IsFileProcessedAnswer(){ this.answer = false; this.correct=false;}
   public boolean isAnswer() {
-    System.out.println("HERE: ["+answer + ":"+correct+"]");
+//    System.out.println("HERE: ["+answer + ":"+correct+"]");
     return answer;
   }
   public boolean isCorrect() { return correct; }

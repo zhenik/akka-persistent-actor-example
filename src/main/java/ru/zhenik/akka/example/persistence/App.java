@@ -80,18 +80,20 @@ public class App {
     preStart(kafkaBootstrapServers);
 
     // Original listing (put on stream name of each file in directory)
-    final Source<PathAndProcessed, NotUsed> listDirSource = Directory.ls(fs.getPath(imgDir))
+    final Source<PathAndProcessed, NotUsed> listDirSource = Directory
+        .ls(fs.getPath(imgDir))
         .mapAsync(1, (Path e) -> {
-//              return null;
-          return
-              PatternsCS.ask(
-                  persistentActor,
-                  new IsFileProcessed(e.toString()),
-                  Duration.ofSeconds(4).toMillis())
-                  .thenApply(a -> (IsFileProcessedAnswer) a)
-                  .thenApply(isFileProcessedAnswer -> new PathAndProcessed(e.toString(), isFileProcessedAnswer.isAnswer()));
+          return PatternsCS.ask(
+              persistentActor,
+              new IsFileProcessed(e.toString()),
+              Duration.ofSeconds(4).toMillis())
+              .thenApply(a -> (IsFileProcessedAnswer) a)
+              .thenApply(isFileProcessedAnswer -> {
+                PathAndProcessed pathAndProcessed = new PathAndProcessed(e.toString(), isFileProcessedAnswer.isAnswer());
+                System.out.println("FILE: "+pathAndProcessed.path + "\nPROCESSED: "+pathAndProcessed.processed+"\n\n");
+                return pathAndProcessed;
+              });
         });
-
 
     // Source CHANGE LISTENER
     final Source<PathAndProcessed, NotUsed> changesSource =
