@@ -23,7 +23,6 @@ import akka.stream.javadsl.Sink;
 import akka.stream.javadsl.Source;
 import com.typesafe.config.Config;
 import com.typesafe.config.ConfigFactory;
-import java.io.File;
 import java.nio.file.FileSystem;
 import java.nio.file.FileSystems;
 import java.nio.file.Path;
@@ -89,11 +88,12 @@ public class App {
               Duration.ofSeconds(4).toMillis())
               .thenApply(a -> (IsFileProcessedAnswer) a)
               .thenApply(isFileProcessedAnswer -> {
-                PathAndProcessed pathAndProcessed = new PathAndProcessed(e.toString(), isFileProcessedAnswer.isAnswer());
+                PathAndProcessed pathAndProcessed = new PathAndProcessed(e.toString(), isFileProcessedAnswer.getAnswer());
                 System.out.println("FILE: "+pathAndProcessed.path + "\nPROCESSED: "+pathAndProcessed.processed+"\n\n");
                 return pathAndProcessed;
               });
-        });
+          });
+
 
     // Source CHANGE LISTENER
     final Source<PathAndProcessed, NotUsed> changesSource =
