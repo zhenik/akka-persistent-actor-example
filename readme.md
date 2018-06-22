@@ -64,7 +64,7 @@ e.key() is filename from ProducerRecord.
 When application restarts, persistent actor recover state from levelDB.  
 
 ## Akka-streams topology 
-![img](./alpakka-streams-topology.png)
+![img](./alpakka-streams.png)
 
 
 
